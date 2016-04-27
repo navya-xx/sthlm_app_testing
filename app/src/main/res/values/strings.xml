@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Runner</string>
+    <string name="action_settings">Settings</string>
+    <string name="title_list">Tracks</string>
+    <string name="title_activity_maps">Track View</string>
+    <string name="title_activity_maps2">Run</string>
+
+    <string name="title_activity_fullscreen">Runner</string>
+    <string name="dummy_button">Dummy Button</string>
+    <string name="dummy_content">DUMMY\nCONTENT</string>
+</resources>
