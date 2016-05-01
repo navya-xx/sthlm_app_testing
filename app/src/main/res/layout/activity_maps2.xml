@@ -68,15 +68,15 @@
                 <TextView
                     android:layout_width="90dp"
                     android:layout_height="wrap_content"
-                    android:text="Distance(m): "
+                    android:text="step Detector"
                     android:textStyle="bold"
                     android:layout_column="3"/>
                 <TextView
                     android:layout_width="90dp"
                     android:layout_height="wrap_content"
-                    android:text="Distance"
+                    android:text="sd"
                     android:textStyle="bold"
-                    android:id="@+id/dist"
+                    android:id="@+id/sd"
                     android:layout_column="4"/>
             </TableRow>
             <TableRow>
@@ -96,14 +96,15 @@
                 <TextView
                     android:layout_width="90dp"
                     android:layout_height="wrap_content"
-                    android:text="Num_Points:"
+                    android:text="Step Counter"
                     android:textStyle="bold"
-                    android:layout_column="3"/>
+                    android:layout_column="3"
+                    android:id="@+id/step_count" />
                 <TextView
                     android:layout_width="90dp"
                     android:layout_height="wrap_content"
-                    android:text="Num_Points"
-                    android:id="@+id/sz"
+                    android:text="step_counter"
+                    android:id="@+id/sc"
                     android:textStyle="bold"
                     android:layout_column="4"/>
             </TableRow>
@@ -124,14 +125,15 @@
                 <TextView
                     android:layout_width="90dp"
                     android:layout_height="wrap_content"
-                    android:text="xyz:"
+                    android:text="Acc"
                     android:textStyle="bold"
-                    android:layout_column="3"/>
+                    android:layout_column="3"
+                    android:id="@+id/accl_val" />
                 <TextView
                     android:layout_width="90dp"
                     android:layout_height="wrap_content"
-                    android:text="xyx"
-                    android:id="@+id/xyz"
+                    android:text="acc"
+                    android:id="@+id/ac"
                     android:textStyle="bold"
                     android:layout_column="4"/>
             </TableRow>

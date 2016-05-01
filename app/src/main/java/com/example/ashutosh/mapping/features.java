@@ -10,6 +10,7 @@ public class features {
     private int _id;
     private int _track_id;
     private java.util.List<latlng_values> _features = new ArrayList<latlng_values>();
+    private String TAG = "Feature class: ";
 
     public features(){
     }

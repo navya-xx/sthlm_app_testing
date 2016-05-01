@@ -11,6 +11,7 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -67,25 +68,9 @@ public class MapsActivity extends FragmentActivity implements LocationListener, 
                 .findFragmentById(R.id.map1);
         mapFragment.getMapAsync(this);
 
-        final Button button = (Button) findViewById(R.id.start1);
-        button.setOnClickListener(this);
-        final Button button1 = (Button) findViewById(R.id.start2);
-        button1.setOnClickListener(this);
         final Button button2 = (Button) findViewById(R.id.start3);
-        button2.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                //distFromStart();
-                //if(atStartPoint == true)
-                //startActivity(new Intent(MapsActivity.this, MapsActivity2.class));
-                //else {
-                    //Toast.makeText(getApplicationContext(), "You are not at the start point!", Toast.LENGTH_LONG).show();
-                //}
-                Log.e(TAG,"Ready for MapsActivity2!");
-                startActivity(new Intent(MapsActivity.this, MapsActivity2.class));
-                Log.e(TAG,"Done with MapsActivity2!");
-            }
-        });
+        button2.setOnClickListener(this);
+        button2.setEnabled(false);
         //posX = (TextView) findViewById(R.id.positionX);
         //posY = (TextView) findViewById(R.id.positionY);
         Log.e(TAG, "Before mapping");
@@ -101,26 +86,12 @@ public class MapsActivity extends FragmentActivity implements LocationListener, 
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
-        mMap = googleMap;
-        mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+        load_track();
+
+        PolylineOptions options = new PolylineOptions().width(5).color(Color.BLUE).geodesic(true);
+        Log.d(TAG, "Poly op");
+
         createLocationRequest();
-
-        mMap.setMyLocationEnabled(true);
-        LatLng defaultLoc = new LatLng(59.3293230, 18.0685810);
-        //mMap.addMarker(new MarkerOptions().position(defaultLoc).title("Stockholm"));
-        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(defaultLoc, 4.0f));
-        //mMap.moveCamera(CameraUpdateFactory.newLatLng(defaultLoc));
-
-
-        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-
-        // Create a criteria object to retrieve provider
-        Criteria criteria = new Criteria();
-
-        // Get the name of the best provider
-        String provider = locationManager.getBestProvider(criteria, true);
-
-        // Get Current Location
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             // TODO: Consider calling
             //    ActivityCompat#requestPermissions
@@ -132,11 +103,33 @@ public class MapsActivity extends FragmentActivity implements LocationListener, 
             return;
         }
 
+        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 
+        // Create a criteria object to retrieve provider
+        Criteria criteria = new Criteria();
+
+        // Get the name of the best provider
+        String provider = locationManager.getBestProvider(criteria, true);
+
+        // Get Current Location
         Location myLocation = locationManager.getLastKnownLocation(provider);
+
         // set map type
         //mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
+        mMap = googleMap;
         mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
+
+        for (int i = 0; i < numLoc; i++) {
+            LatLng point = gpsLoc.get(i);
+            options.add(point);
+        }
+        Log.d(TAG, "track drawn");
+        //map.addMarker(); //add Marker in current position
+        mMap.addPolyline(options); //add Polyline*/
+
+        mMap.setMyLocationEnabled(true);
+        LatLng defaultLoc = new LatLng(59.3293230, 18.0685810);
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(defaultLoc, 4.0f));
 
         try {
             // Get latitude of the current location
@@ -153,14 +146,19 @@ public class MapsActivity extends FragmentActivity implements LocationListener, 
             startLocationUpdates();
         }
 
+        LatLngBounds.Builder bc = new LatLngBounds.Builder();
+        bc.include(start_loc);
+        bc.include(gpsLoc.get(0));
 
+        Context context = this.getApplicationContext();
+        DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        int width = metrics.widthPixels;
+        int height = metrics.heightPixels;
 
-        // Show the current location in Google Map
-        //mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+       mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bc.build(), width, height, 100));
 
-        // Zoom in the Google Map
-        //mMap.animateCamera(CameraUpdateFactory.zoomTo(16));
-        //mMap.addMarker(new MarkerOptions().position(new LatLng(latitude, longitude)).title("You are here!").snippet("Consider yourself located"));
+        final Button button2 = (Button) findViewById(R.id.start3);
+        button2.setEnabled(true);
     }
 
 
@@ -177,104 +175,15 @@ public class MapsActivity extends FragmentActivity implements LocationListener, 
     }
 
     public void onClick(View v){
-
         switch(v.getId())
         {
-            case R.id.start1:
+            case R.id.start3:
             {
-                Log.d(TAG, "Loading Track");
-
-                if(com.example.ashutosh.mapping.List.trackId == 0){
-                    nearest_track(start_loc);
-                    Log.d(TAG, "Loading Track nearest");
-                }
-                else {
-                    TrackList tTrack;
-                    tTrack=com.example.ashutosh.mapping.List.tracks.get(com.example.ashutosh.mapping.List.trackId -1);
-                    numLoc=tTrack.listLen;
-                    gpsLoc=tTrack.gpsList;
-                    Log.d(TAG, "Loading Track num");
-                }
-
+                Log.e(TAG,"Ready for MapsActivity2!");
+                startActivity(new Intent(MapsActivity.this, MapsActivity2.class));
+                Log.e(TAG,"Done with MapsActivity2!");
 
                 break;
-            }
-            case R.id.start2:
-            {
-                PolylineOptions options = new PolylineOptions().width(5).color(Color.BLUE).geodesic(true);
-                //LatLngBounds track = new LatLngBounds(gpsLoc.get(0), gpsLoc.get(numLoc - 1));
-                //mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(track,0));
-                Log.d(TAG, "Poly op");
-
-
-
-                createLocationRequest();
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
-                    return;
-                }
-
-                LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-
-                // Create a criteria object to retrieve provider
-                Criteria criteria = new Criteria();
-
-                // Get the name of the best provider
-                String provider = locationManager.getBestProvider(criteria, true);
-
-                // Get Current Location
-
-                Location myLocation = locationManager.getLastKnownLocation(provider);
-
-                // set map type
-                //mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-                mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
-
-                // Get latitude of the current location
-                double latitude = myLocation.getLatitude();
-
-                // Get longitude of the current location
-                double longitude = myLocation.getLongitude();
-
-                // Create a LatLng object for the current location
-                LatLng latLng = new LatLng(latitude, longitude);
-                start_loc = latLng;
-
-                LatLngBounds.Builder bc = new LatLngBounds.Builder();
-                bc.include(start_loc);
-                bc.include(gpsLoc.get(0));
-                mMap.moveCamera(CameraUpdateFactory.newLatLngBounds(bc.build(), 100));
-
-/*
-                LatLng otherSidePos = new LatLng(2 * start_loc.latitude - gpsLoc.get(0).latitude, 2 * start_loc.longitude - gpsLoc.get(0).longitude);
-                LatLngBounds bounds = new LatLngBounds.Builder().include(gpsLoc.get(0)).include(otherSidePos).build();
-
-
-                DisplayMetrics metrics=new DisplayMetrics(); getWindowManager().getDefaultDisplay().getMetrics(metrics);
-                mMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, metrics.widthPixels, metrics.heightPixels, 10));*/
-
-
-
-
-
-                //mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(gpsLoc.get(0), 16.0f));
-                Log.d(TAG, "Cam anim");
-                for (int i = 0; i < numLoc; i++) {
-                    LatLng point = gpsLoc.get(i);
-                    options.add(point);
-                }
-                Log.d(TAG, "track drawn");
-                //map.addMarker(); //add Marker in current position
-                mMap.addPolyline(options); //add Polyline*/
-
-
-
             }
         }
     }
@@ -407,5 +316,24 @@ public class MapsActivity extends FragmentActivity implements LocationListener, 
                 mGoogleApiClient, mLocationRequest, this);
         Log.d(TAG, "Location update started ..............: ");
     }
+
+    private void load_track(){
+        Log.d(TAG, "Loading Track");
+
+        if(com.example.ashutosh.mapping.List.trackId == 0){
+            nearest_track(start_loc);
+            Log.d(TAG, "Loading Track nearest");
+        }
+        else {
+            TrackList tTrack;
+            tTrack=com.example.ashutosh.mapping.List.tracks.get(com.example.ashutosh.mapping.List.trackId -1);
+            numLoc=tTrack.listLen;
+            gpsLoc=tTrack.gpsList;
+            Log.d(TAG, "Loading Track num");
+        }
+
+
+    }
+
 }
 

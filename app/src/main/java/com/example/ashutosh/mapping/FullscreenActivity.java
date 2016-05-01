@@ -23,6 +23,7 @@ public class FullscreenActivity extends Activity {
 
         // check that the user data is created in the database
 
+
         if (!splashLoaded) {
 
             setContentView(R.layout.activity_fullscreen);

@@ -9,27 +9,13 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:weightSum="1">
+
         <Button
-            android:layout_width="110dp"
+            android:layout_width="385dp"
             android:layout_height="wrap_content"
-            android:layout_gravity="left"
-            android:text="Load"
-            android:id="@+id/start1"
-            android:layout_weight="0.21" />
-        <Button
-            android:layout_width="110dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="Display"
-            android:id="@+id/start2"
-            android:layout_weight="0.43" />
-        <Button
-            android:layout_width="110dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="right"
             android:text="Run"
             android:id="@+id/start3"
-            android:layout_weight="0.43" />
+            android:layout_gravity="center_horizontal" />
     </LinearLayout>
 
     <!--<LinearLayout

@@ -3,10 +3,15 @@ package com.example.ashutosh.mapping;
 import android.Manifest;
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -37,37 +42,61 @@ import com.google.android.gms.maps.model.PolylineOptions;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
-//import com.google.maps.android.ui.IconGenerator;
 
 
 public class MapsActivity2 extends Activity implements
-        LocationListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, OnMapReadyCallback {
+        SensorEventListener, LocationListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, OnMapReadyCallback {
 
     private static final String TAG = "MAPSACTIVITY2";
     // Map initialization parameters
-    private static final long INTERVAL = 0; //1 sec
-    private static final float SMALLEST_DISPLACEMENT = 0F; //unit is meter
+    private static final long INTERVAL = 20; //1 sec
+    private static final float SMALLEST_DISPLACEMENT = 0; //unit is meter
     private final long FASTEST_INTERVAL = 0; // 1sec
+
+    // clock
     public long totTime = 0;
+
     protected ArrayList<Date> dateStamp = new ArrayList<>();
+
+    // List of points - store all data in this variable
     protected ArrayList<latlng_values> points = new ArrayList<>();
+
     ArrayList<LatLng> drawable_points = new ArrayList<>();
+
+    // Polyline to display track
     Polyline line; //added
+
     double distance = 0;
     int flag_stop = 0;
+
     // Database handle
     MyDbHandler dbHandler;
+
     // Map variables
     private LocationRequest mLocationRequest;
     private GoogleApiClient mGoogleApiClient;
     private Location mCurrentLocation;
 
+    public float accuracy, speed;
+    public double altitude;
+
     private ArrayList<Long> timeElap = new ArrayList<Long>();
     private ArrayList<Long> timeStamp = new ArrayList<Long>();
     //    File file;
 //    OutputStream fos;
-    private TextView acc_view, dist, sz, timeDisp;
+    private TextView acc_view, dist, sc, timeDisp, ac, sd;
+
+    // Sensor data
+    private SensorManager sensorManager;
+    private Sensor mStepCounterSensor;
+    private Sensor mStepDetectorSensor;
+    private Sensor mAcceleratorSensor;
+    boolean activityRunning;
+
+    private int mSensorStepC, mSensorStepD;
+    private double mSensorAccX, mSensorAccY, mSensorAccZ;
 
 
     public MapsActivity2() {
@@ -100,26 +129,34 @@ public class MapsActivity2 extends Activity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        /*sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+
+        activityRunning = true;
+        // start step counter
+        mStepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
+        mStepDetectorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR);
+        mAcceleratorSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);*/
+
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addApi(LocationServices.API)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .build();
         setContentView(R.layout.activity_maps2);
-        Log.d(TAG, "onCreate2 ...............................");
 
         MapFragment mapFragment =
                 (MapFragment) getFragmentManager().findFragmentById(R.id.map2);
 
-        Log.d(TAG, "onCreate3 ...............................");
         mapFragment.getMapAsync(this);
 
-        Log.d(TAG, "onCreate4 ...............................");
-
         acc_view = (TextView) findViewById(R.id.accu);
-        sz = (TextView) findViewById(R.id.sz);
-        dist = (TextView) findViewById(R.id.dist);
-        timeDisp = (TextView)findViewById(R.id.timeDur);
+        sc = (TextView) findViewById(R.id.sc);
+        sd = (TextView) findViewById(R.id.sd);
+        ac = (TextView) findViewById(R.id.ac);
+
+        //dist = (TextView) findViewById(R.id.dist);
+        timeDisp = (TextView) findViewById(R.id.timeDur);
+
 
         final Button button_save = (Button) findViewById(R.id.save);
         button_save.setOnClickListener(new View.OnClickListener() {
@@ -135,7 +172,7 @@ public class MapsActivity2 extends Activity implements
     }
 
     private void setDB_params() {
-        dbHandler = new MyDbHandler(this, null, null, 2);
+        dbHandler = new MyDbHandler(this, null, null, 0);
         dbHandler.setDEVICE_ID();
         // get timestamp just for creating new table for this track
         Long ts = System.currentTimeMillis();
@@ -160,23 +197,26 @@ public class MapsActivity2 extends Activity implements
         features new_feature = new features();
         // get track
         TrackList tTrack;
-        tTrack = com.example.ashutosh.mapping.List.tracks.get(com.example.ashutosh.mapping.List.trackId);
+        int track_id = com.example.ashutosh.mapping.List.trackId;
+        if (track_id != 0) {
+            tTrack = com.example.ashutosh.mapping.List.tracks.get(com.example.ashutosh.mapping.List.trackId - 1);
+        } else {
+            tTrack = com.example.ashutosh.mapping.List.tracks.get(0);
+        }
         new_feature.set_track_id(tTrack.id);
-        Log.e(TAG, "testing5");
+        Log.e(TAG, " TrackID : " + Integer.toString(tTrack.id));
 
         // import lat long values
         List<latlng_values> feat_list = new ArrayList<latlng_values>();
-        Log.e(TAG, "compare - points : " + points.size() + " , timeStamp:" + timeStamp.size());
-        // should not go in this now!
-        if (timeStamp.size() + 1 == points.size()) timeStamp.add(mCurrentLocation.getTime());
 
         for (int i = 0; i < points.size(); i++) {
-            latlng_values temp = new latlng_values();
-            temp.setLatitude(points.get(i).latitude);
-            temp.setLongitude(points.get(i).longitude);
-            temp.setTimestamp(timeStamp.get(i));
-            Log.e(TAG, "temp vals: " + temp);
-            feat_list.add(i, temp);
+//            temp.setLatitude(points.get(i).getLatitude());
+//            temp.setLongitude(points.get(i).getLongitude());
+//            temp.setTimestamp(points.get(i).getTimestamp());
+//            temp.setSpeed(points.get(i).getSpeed());
+//            temp.setAltitude(points.get(i).getAltitude());
+//            temp.setAccuracy(points.get(i).getAccuracy());
+            feat_list.add(i, points.get(i));
         }
         new_feature.set_features(feat_list);
 
@@ -190,11 +230,15 @@ public class MapsActivity2 extends Activity implements
         return true;
     }
 
-    public void export_mysql() {
+    public Boolean export_mysql() {
         Log.e(TAG, "testing6");
         if (dbHandler.isNetworkAvailable(this)) {
             Log.e(TAG, "testing7");
-            dbHandler.post_http_json(dbHandler.get_json_track(dbHandler.getTABLE_TRACK()), dbHandler.URL_INSERT_TRACK);
+            dbHandler.mysql_update_tracks(dbHandler.URL_INSERT_TRACK);
+            //dbHandler.post_http_json(dbHandler.get_json_track(dbHandler.getTABLE_TRACK()), dbHandler.URL_INSERT_TRACK);
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -212,6 +256,10 @@ public class MapsActivity2 extends Activity implements
         Log.d(TAG, "onStop fired ..............");
         mGoogleApiClient.disconnect();
         Log.d(TAG, "isConnected ...............: " + mGoogleApiClient.isConnected());
+
+        /*sensorManager.unregisterListener(this, mStepCounterSensor);
+        sensorManager.unregisterListener(this, mStepDetectorSensor);
+        sensorManager.unregisterListener(this, mAcceleratorSensor);*/
     }
 
     private boolean isGooglePlayServicesAvailable() {
@@ -241,6 +289,8 @@ public class MapsActivity2 extends Activity implements
             //                                          int[] grantResults)
             // to handle the case where the user grants the permission. See the documentation
             // for ActivityCompat#requestPermissions for more details.
+            Toast toast = Toast.makeText(this.getApplicationContext(), "Please provide permission for Location service.", Toast.LENGTH_LONG);
+            toast.show();
             return;
         }
         PendingResult<Status> pendingResult = LocationServices.FusedLocationApi.requestLocationUpdates(
@@ -258,7 +308,7 @@ public class MapsActivity2 extends Activity implements
         Log.d(TAG, "Connection failed: " + connectionResult.toString());
     }
 
-    public void timeElapsed() {
+    public long timeElapsed() {
         long d0 = dateStamp.get(0).getTime();
         long d1 = dateStamp.get(points.size() - 1).getTime();
         long d2 = dateStamp.get(points.size() - 2).getTime();
@@ -267,40 +317,39 @@ public class MapsActivity2 extends Activity implements
         long diff = (d1 - d2) / 1000;
         totTime = (d1 - d0) / 1000;
         timeElap.add(diff);
-        timeDisp.setText(String.valueOf(totTime));
+        return totTime;
+
     }
 
     @Override
     public void onLocationChanged(Location location) {
-        Log.d(TAG, "Firing onLocationChanged..............................................");
+        //Log.d(TAG, "Firing onLocationChanged..............................................");
         mCurrentLocation = location;
 
         double latitude = location.getLatitude();
         double longitude = location.getLongitude();
-        Bundle extras = location.getExtras();
 
-        float accuracy;
-        if(location.hasAccuracy()){
+        if (location.hasAccuracy()) {
             accuracy = location.getAccuracy();
         } else {
             accuracy = 0;
         }
+        //Log.e(TAG, "accuracy: " + accuracy);
 
-        double altitude;
-        if(location.hasAltitude()) {
+        if (location.hasAltitude()) {
             altitude = location.getAltitude();
         } else {
             altitude = 0;
         }
+        //Log.e(TAG, "altitude: " + altitude);
 
-        float speed;
-        if(location.hasSpeed()){
+        if (location.hasSpeed()) {
             speed = location.getSpeed();
         } else {
             speed = 0;
         }
+        //Log.e(TAG, "speed: " + speed);
 
-        String provider = location.getProvider();
         Long time_temp = location.getTime();
 
         //Add parameter to point var
@@ -311,6 +360,12 @@ public class MapsActivity2 extends Activity implements
         temp.setLongitude(longitude);
         temp.setSpeed(speed);
         temp.setTimestamp(time_temp);
+        temp.setmSensorStepC(mSensorStepC);
+        temp.setmSensorStepD(mSensorStepD);
+        temp.setmSensorAccX(mSensorAccX);
+        temp.setmSensorAccY(mSensorAccY);
+        temp.setmSensorAccZ(mSensorAccZ);
+        //Log.e(TAG, "temp: " + temp);
         points.add(temp);
 
         TextView lat = (TextView) findViewById(R.id.lat);
@@ -319,18 +374,25 @@ public class MapsActivity2 extends Activity implements
         longi.setText(String.valueOf(longitude));
         acc_view.setText(String.format("%.2f", accuracy));
         int sz = points.size();
-        if(sz>2) {
+        if (sz > 2) {
             dist_calc(points.get(sz - 1).latitude, points.get(sz - 2).latitude, points.get(sz - 1).longitude, points.get(sz - 2).longitude);
-            dist.setText(String.format("%.2f", distance));
-            timeElapsed();
+            //dist.setText(String.format("%.2f", distance));
+            long time_step = timeElapsed();
+            timeDisp.setText(String.valueOf(time_step));
         }
         dateStamp.add(new Date());
 
 
         TextView speed_view = (TextView) findViewById(R.id.speed);
-        speed_view.setText(String.valueOf(speed));
+        speed_view.setText(String.format("%.3f", speed));
 
-        Log.d(TAG, "after points");
+        // sensor data
+
+        sc.setText(String.format(Locale.US, "%d", mSensorStepC));
+        sd.setText(String.format(Locale.US, "%d", mSensorStepD));
+        ac.setText(String.format("%.2f,%.2f,%.2f", mSensorAccX, mSensorAccY, mSensorAccZ));
+
+        //Log.d(TAG, "after points");
         if (points.size() > 2)
             redrawLine();
     }
@@ -343,8 +405,8 @@ public class MapsActivity2 extends Activity implements
     private void get_mapable(ArrayList<latlng_values> points) {
         int size_ = points.size();
         ArrayList<LatLng> drawable_points = new ArrayList<>();
-        for(int i=0; i<size_; i++) {
-            LatLng temp = new LatLng(points.get(i).latitude,points.get(i).longitude);
+        for (int i = 0; i < size_; i++) {
+            LatLng temp = new LatLng(points.get(i).latitude, points.get(i).longitude);
             drawable_points.add(temp);
         }
         this.drawable_points = drawable_points;
@@ -362,7 +424,7 @@ public class MapsActivity2 extends Activity implements
     @Override
     protected void onPause() {
         super.onPause();
-        if(mGoogleApiClient.isConnected())
+        if (mGoogleApiClient.isConnected())
             stopLocationUpdates();
     }
 
@@ -379,7 +441,28 @@ public class MapsActivity2 extends Activity implements
             startLocationUpdates();
             Log.d(TAG, "Location update resumed .....................");
         }
+        if (mStepCounterSensor != null) {
+            sensorManager.registerListener(this, mStepCounterSensor, SensorManager.SENSOR_DELAY_FASTEST);
+            Log.e(TAG, "stepp counter registered!");
+        } else {
+            Toast.makeText(this, "Step Count sensor not available!", Toast.LENGTH_LONG).show();
+        }
+
+        if (mStepDetectorSensor != null) {
+            sensorManager.registerListener(this, mStepDetectorSensor, SensorManager.SENSOR_DELAY_FASTEST);
+            Log.e(TAG, "stepp detector registered!");
+        } else {
+            Toast.makeText(this, "Step detect sensor not available!", Toast.LENGTH_LONG).show();
+        }
+
+        if (mAcceleratorSensor != null) {
+            sensorManager.registerListener(this, mAcceleratorSensor, SensorManager.SENSOR_DELAY_FASTEST);
+            Log.e(TAG, "Accelerometer registered!");
+        } else {
+            Toast.makeText(this, "Accelerometer not available!", Toast.LENGTH_LONG).show();
+        }
     }
+
 
     @Override
     public void onMapReady(final GoogleMap googleMap) {
@@ -439,6 +522,41 @@ public class MapsActivity2 extends Activity implements
 
     }
 
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        Sensor sensor = event.sensor;
+        float[] values = event.values;
+        float value = -1;
+
+        //Log.e(TAG, "sensor changed!");
+
+        if (values.length > 0) {
+
+            if (activityRunning) {
+                //Log.e(TAG, "getting value!");
+                if (sensor.getType() == Sensor.TYPE_STEP_COUNTER) {
+                    mSensorStepC = (int) values[0];
+                    //Log.e(TAG, "stepp counter :" + value);
+                } else if (sensor.getType() == Sensor.TYPE_STEP_DETECTOR) {
+                    // For test only. Only allowed value is 1.0 i.e. for step taken
+                    mSensorStepD = (int) values[0];
+                    //Log.e(TAG, "step D counter :" + value);
+                } else if (sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+                    // For test only. Only allowed value is 1.0 i.e. for step taken
+                    mSensorAccX = values[0];
+                    mSensorAccY = values[1];
+                    mSensorAccZ = values[2];
+                    //Log.e(TAG, "acc counter :" + value);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+    }
+
     private class BackgroundTask extends AsyncTask<Void, Void, Void> {
         private ProgressDialog dialog;
 
@@ -458,6 +576,11 @@ public class MapsActivity2 extends Activity implements
         protected void onPostExecute(Void result) {
             if (dialog.isShowing()) {
                 dialog.dismiss();
+                Intent goToMainActivity = new Intent(MapsActivity2.this, com.example.ashutosh.mapping.List.class);
+                goToMainActivity.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(goToMainActivity);
+                finish();
+                Toast.makeText(getApplicationContext(), "Data saved to server!", Toast.LENGTH_LONG).show();
             }
         }
 
@@ -467,7 +590,9 @@ public class MapsActivity2 extends Activity implements
             //write_points();
             setDB_params();
             if (write_db()) {
-                export_mysql();
+                if (!export_mysql()) {
+                    this.dialog.setMessage("Database sync failed! Sync again when internet is available!");
+                }
             }
             return null;
         }

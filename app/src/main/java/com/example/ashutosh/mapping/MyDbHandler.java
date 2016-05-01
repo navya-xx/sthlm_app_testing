@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.UUID;
 
 public class MyDbHandler extends SQLiteOpenHelper {
+
     public static final String COLUMN_ID = "_id";
     public static final String COLUMN_TRACK_ID = "_track_id";
     public static final String COLUMN_TRACK_TABLE = "_track_table";
@@ -33,7 +34,13 @@ public class MyDbHandler extends SQLiteOpenHelper {
     public static final String COLUMN_ALTITUDE = "_altitude";
     public static final String COLUMN_UPDATE = "_update";
     private static final String COLUMN_DEVICE_ID = "_DEVICE_ID";
-    private static final int DATABASE_VERSION = 1;
+    private static final String COLUMN_SENSOR_STEPC = "_SENSOR_STEPC";
+    private static final String COLUMN_SENSOR_STEPD = "_SENSOR_STEPD";
+    private static final String COLUMN_ACC_X = "_SENSOR_ACC_X";
+    private static final String COLUMN_ACC_Y = "_SENSOR_ACC_Y";
+    private static final String COLUMN_ACC_Z = "_SENSOR_ACC_Z";
+
+    private static final int DATABASE_VERSION = 4;
     private static final String TABLE_USER_TRACKS = "user_track_list";
     private static final String TABLE_DEVICE_ID = "user_device_id";
     public static final String URL_INSERT_TRACK = "http://www.sthlmrunning.com/php/insert_track.php";
@@ -53,7 +60,7 @@ public class MyDbHandler extends SQLiteOpenHelper {
     public String DEVICE_ID;
 
     private SQLiteDatabase myDatabase;
-    private static final String TAG = "Mapwa123";
+    private static final String TAG = "MyDbHandler_class:";
 
     //We need to pass database information along to superclass
     public MyDbHandler(Context context, String name, SQLiteDatabase.CursorFactory factory, int version) {
@@ -71,7 +78,7 @@ public class MyDbHandler extends SQLiteOpenHelper {
                 COLUMN_UPDATE + " INTEGER NOT NULL, " +
                 COLUMN_TIMESTAMP + " TEXT " +
                 ");";
-        Log.e(TAG, "OnCreate database" + query);
+        Log.e(TAG, "OnCreate database " + query);
         db.execSQL(query);
         Log.e(TAG, "User Table created!");
 
@@ -80,9 +87,15 @@ public class MyDbHandler extends SQLiteOpenHelper {
                 COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT," +
                 COLUMN_DEVICE_ID + " TEXT NOT NULL" +
                 ");";
-        Log.e(TAG, "2OnCreate database" + query);
+        Log.e(TAG, "2 OnCreate database " + query);
         db.execSQL(query);
-        Log.e(TAG, "3User Table created!");
+        Log.e(TAG, "3 User Table created!");
+
+        // insert device ID
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_DEVICE_ID, DEVICE_ID);
+        db.insert(TABLE_DEVICE_ID, null, values);
+        Log.e(TAG,"---" + values);
     }
 
 
@@ -95,9 +108,14 @@ public class MyDbHandler extends SQLiteOpenHelper {
                 COLUMN_ACCURACY + " REAL NOT NULL, " +
                 COLUMN_ALTITUDE + " REAL NOT NULL, " +
                 COLUMN_SPEED + " REAL NOT NULL, " +
+                COLUMN_SENSOR_STEPC + " INTEGER NOT NULL, " +
+                COLUMN_SENSOR_STEPD + " INTEGER NOT NULL, " +
+                COLUMN_ACC_X + " REAL NOT NULL, " +
+                COLUMN_ACC_Y + " REAL NOT NULL, " +
+                COLUMN_ACC_Z + " REAL NOT NULL, " +
                 COLUMN_TIMESTAMP + " TIMESTAMP NULL" +
                 ");";
-        Log.e(TAG, "New track creation" + query);
+        Log.e(TAG, "New track creation " + query);
         db.execSQL(query);
         Log.e(TAG, "New track added to DB");
     }
@@ -123,7 +141,7 @@ public class MyDbHandler extends SQLiteOpenHelper {
     //Add a new row to the database
     public void addProduct(features feature) {
         ContentValues values = new ContentValues();
-        int track_id = feature.get_id();
+        int track_id = feature.get_track_id();
         java.util.List<latlng_values> latlong;
         latlong = feature.get_features();
         SQLiteDatabase db = getWritableDatabase();
@@ -134,9 +152,14 @@ public class MyDbHandler extends SQLiteOpenHelper {
             values.put(COLUMN_TRACK_ID, track_id);
             values.put(COLUMN_LATITUDE, temp.getLatitude());
             values.put(COLUMN_LONGITUDE, temp.getLongitude());
-            values.put(COLUMN_ACCURACY, temp.accuracy);
-            values.put(COLUMN_ALTITUDE, temp.altitude);
-            values.put(COLUMN_SPEED, temp.speed);
+            values.put(COLUMN_ACCURACY, temp.getAccuracy());
+            values.put(COLUMN_ALTITUDE, temp.getAltitude());
+            values.put(COLUMN_SPEED, temp.getSpeed());
+            values.put(COLUMN_SENSOR_STEPC, temp.getmSensorStepC());
+            values.put(COLUMN_SENSOR_STEPD, temp.getmSensorStepD());
+            values.put(COLUMN_ACC_X, temp.getmSensorAccX());
+            values.put(COLUMN_ACC_Y, temp.getmSensorAccY());
+            values.put(COLUMN_ACC_Z, temp.getmSensorAccZ());
             values.put(COLUMN_TIMESTAMP, temp.getTimestamp());
             Log.e(TAG,"latlng value to add:" + values);
             db.insert(TABLE_TRACK, null, values);
@@ -170,15 +193,17 @@ public class MyDbHandler extends SQLiteOpenHelper {
     }
 
     public void setDEVICE_ID() {
-        String query = "SELECT " + COLUMN_DEVICE_ID + " FROM " + TABLE_DEVICE_ID +" WHERE 1;";
+        String query = "SELECT * FROM " + TABLE_DEVICE_ID +" WHERE 1;";
+        Log.e(TAG, "Query: " + query);
         SQLiteDatabase database = this.getWritableDatabase();
         Cursor cursor = database.rawQuery(query,null);
-        if(cursor.getCount() == 0){
+        if(cursor.moveToFirst() == false){
             Log.e(TAG, "Something went wrong! Device_id not created when database was created.");
         } else {
-            DEVICE_ID = cursor.getString(0);
-            this.DEVICE_ID = DEVICE_ID;
+            DEVICE_ID = cursor.getString(1);
+            Log.e(TAG, "Device ID: " + DEVICE_ID);
         }
+        database.close();
     }
 
     public String getTABLE_TRACK() {
@@ -275,14 +300,13 @@ public class MyDbHandler extends SQLiteOpenHelper {
      * @method - http request method
      * @params - http request params
      * */
-    public void mysql_update_tracks(String url, int method, RequestParams params) {
-        AsyncHttpClient client = new AsyncHttpClient();
+    public void mysql_update_tracks(String url) {
         ArrayList<String> trackList = this.SQLite_getListofUpdateTracks();
         String jsonVal = "";
         // iterate in every table and update content in MySQL database
         for(int i=0; i<trackList.size();i++){
             jsonVal = get_json_track(trackList.get(i));
-            post_http_json(jsonVal, URL_INSERT_TRACK);
+            post_http_json(jsonVal, url);
             int status = (UPDATE_FLAG)?1:0;
             updateSyncStatus(trackList.get(i),Integer.toString(status));
         }
@@ -305,7 +329,12 @@ public class MyDbHandler extends SQLiteOpenHelper {
                 map.put(COLUMN_ACCURACY, cursor.getString(4));
                 map.put(COLUMN_ALTITUDE, cursor.getString(5));
                 map.put(COLUMN_SPEED, cursor.getString(6));
-                map.put(COLUMN_TIMESTAMP, cursor.getString(7));
+                map.put(COLUMN_SENSOR_STEPC, cursor.getString(7));
+                map.put(COLUMN_SENSOR_STEPD, cursor.getString(8));
+                map.put(COLUMN_ACC_X, cursor.getString(9));
+                map.put(COLUMN_ACC_Y, cursor.getString(10));
+                map.put(COLUMN_ACC_Z, cursor.getString(11));
+                map.put(COLUMN_TIMESTAMP, cursor.getString(12));
                 track.add(map);
             } while (cursor.moveToNext());
         }
@@ -316,14 +345,16 @@ public class MyDbHandler extends SQLiteOpenHelper {
         return JSON_string;
     }
 
+    // post on php URL
     public void post_http_json(String JSON_string, String url){
         RequestParams params = new RequestParams();
 
         // ========================================================
         AsyncHttpClient client = new AsyncHttpClient();
         params.put("JSON",JSON_string);
-        params.put("DEVICE_ID",DEVICE_ID);
-        Log.e(TAG, JSON_string);
+        params.put("DEVICE_ID", DEVICE_ID);
+        Log.e(TAG, "JSON_String : " + JSON_string);
+        Log.e(TAG, "DEVICE_ID: " + DEVICE_ID);
         client.post(url, params, new AsyncHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
@@ -331,12 +362,12 @@ public class MyDbHandler extends SQLiteOpenHelper {
                     String res = new String(responseBody);
                     response_string = res;
                     Log.e(TAG, res);
-                    if(res != "0") {
+                    if(Integer.valueOf(res) == 0) {
                         Log.e(TAG, "Data updated in MySQL database successfully!");
                         UPDATE_FLAG = true;
                     }
                     else {
-                        Log.e(TAG, "ERROR in Data update in MySQL database successfully!");
+                        Log.e(TAG, "ERROR in Data update in MySQL database!");
                     }
                 } catch (Exception e) {
 
